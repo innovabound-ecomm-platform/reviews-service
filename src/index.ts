@@ -2,11 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 
-import reviewRoutes from './routes/review.route';
-import moderationRoutes from './routes/moderation.route';
-import questionRoutes from './routes/question.route';
-import answerRoutes from './routes/answer.route';
-import statsRoutes from './routes/stats.route';
+import reviewRoutes from './routes/review.route.js';
+import moderationRoutes from './routes/moderation.route.js';
+import questionRoutes from './routes/question.route.js';
+import answerRoutes from './routes/answer.route.js';
+import statsRoutes from './routes/stats.route.js';
 
 const app = express();
 const PORT = process.env.PORT || 3013;

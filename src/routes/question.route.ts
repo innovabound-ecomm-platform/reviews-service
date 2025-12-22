@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '@innovabound-ecomm-platform/reviews-db';
-import { requireAuth, optionalAuth } from '../middleware/auth';
+import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import {
   createQuestionSchema,
   updateQuestionSchema,
@@ -8,9 +8,10 @@ import {
   createAnswerSchema,
   updateAnswerSchema,
   voteSchema,
-} from '../schemas/review.schema';
+} from '../schemas/review.schema.js';
 
 const router = Router();
+const prisma = getReviewsPrisma();
 
 // Helper to update product Q&A stats
 async function updateProductQAStats(productId: string) {
@@ -112,7 +113,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 // Get question by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
 
     const question = await prisma.question.findUnique({
       where: { id },
@@ -196,7 +197,7 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
 // Update question
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const data = updateQuestionSchema.parse(req.body);
 
     const question = await prisma.question.findUnique({
@@ -232,7 +233,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 // Delete question
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
 
     const question = await prisma.question.findUnique({
       where: { id },
@@ -266,7 +267,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 // Close question
 router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
 
     const question = await prisma.question.findUnique({
       where: { id },
@@ -301,7 +302,7 @@ router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
 // Vote on question
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
-    const questionId = parseInt(req.params.id);
+    const questionId = parseInt(req.params.id!);
 
     const question = await prisma.question.findUnique({
       where: { id: questionId },
@@ -356,7 +357,7 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // Remove vote from question
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
-    const questionId = parseInt(req.params.id);
+    const questionId = parseInt(req.params.id!);
 
     const vote = await prisma.questionVote.findUnique({
       where: {
@@ -395,7 +396,7 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // Add answer
 router.post('/:questionId/answers', requireAuth, async (req: Request, res: Response) => {
   try {
-    const questionId = parseInt(req.params.questionId);
+    const questionId = parseInt(req.params.questionId!);
     const data = createAnswerSchema.parse(req.body);
 
     const question = await prisma.question.findUnique({
@@ -449,7 +450,7 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
 // List answers for question
 router.get('/:questionId/answers', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const questionId = parseInt(req.params.questionId);
+    const questionId = parseInt(req.params.questionId!);
 
     const answers = await prisma.answer.findMany({
       where: { questionId },

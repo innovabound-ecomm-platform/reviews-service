@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '@innovabound-ecomm-platform/reviews-db';
-import { requireAuth, optionalAuth } from '../middleware/auth';
+import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
+import { requireAuth, optionalAuth } from '../middleware/auth.js';
 import {
   createReviewSchema,
   updateReviewSchema,
@@ -10,9 +10,10 @@ import {
   createReportSchema,
   vendorResponseSchema,
   verifyReviewSchema,
-} from '../schemas/review.schema';
+} from '../schemas/review.schema.js';
 
 const router = Router();
+const prisma = getReviewsPrisma();
 
 // Helper to update product review stats
 async function updateProductStats(productId: string) {
@@ -209,7 +210,7 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 // Get review by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
 
     const review = await prisma.review.findUnique({
       where: { id },
@@ -352,7 +353,7 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => 
 // Update review
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const data = updateReviewSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -397,7 +398,7 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 // Delete review
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
 
     const review = await prisma.review.findUnique({
       where: { id },
@@ -434,7 +435,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 
 router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const data = addImageSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -469,8 +470,8 @@ router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
 
 router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
-    const imageId = parseInt(req.params.imageId);
+    const reviewId = parseInt(req.params.id!);
+    const imageId = parseInt(req.params.imageId!);
 
     const review = await prisma.review.findUnique({
       where: { id: reviewId },
@@ -503,7 +504,7 @@ router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Res
 
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const { voteType } = voteSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -579,7 +580,7 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
 
     const vote = await prisma.reviewVote.findUnique({
       where: {
@@ -621,7 +622,7 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 
 router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const data = createReportSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -663,7 +664,7 @@ router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
 
 router.post('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const { body } = vendorResponseSchema.parse(req.body);
 
     // Only vendors/admins can respond
@@ -700,7 +701,7 @@ router.post('/:id/response', requireAuth, async (req: Request, res: Response) =>
 
 router.put('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const { body } = vendorResponseSchema.parse(req.body);
 
     const existingResponse = await prisma.vendorResponse.findUnique({
@@ -735,7 +736,7 @@ router.put('/:id/response', requireAuth, async (req: Request, res: Response) => 
 
 router.delete('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
 
     const existingResponse = await prisma.vendorResponse.findUnique({
       where: { reviewId },
@@ -769,7 +770,7 @@ router.delete('/:id/response', requireAuth, async (req: Request, res: Response) 
 
 router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
     const data = verifyReviewSchema.parse(req.body);
 
     // Only admins can manually verify

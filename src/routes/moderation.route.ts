@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '@innovabound-ecomm-platform/reviews-db';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
+import { requireAuth, requirePermission } from '../middleware/auth.js';
 import {
   moderationActionSchema,
   moderationQueueQuerySchema,
   resolveReportSchema,
-} from '../schemas/review.schema';
+} from '../schemas/review.schema.js';
 
 const router = Router();
+const prisma = getReviewsPrisma();
 
 // Helper to update product review stats
 async function updateProductStats(productId: string) {
@@ -119,7 +120,7 @@ router.get('/queue', requireAuth, requirePermission('admin', 'moderator'), async
 // Approve review
 router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -170,7 +171,7 @@ router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator')
 // Reject review
 router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -217,7 +218,7 @@ router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'),
 // Flag review for additional review
 router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -264,7 +265,7 @@ router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), a
 // Remove published review
 router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -316,7 +317,7 @@ router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'),
 // Restore removed review
 router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
     const review = await prisma.review.findUnique({
@@ -369,7 +370,7 @@ router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator')
 // Get moderation logs for a review
 router.get('/:id/logs', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const reviewId = parseInt(req.params.id);
+    const reviewId = parseInt(req.params.id!);
 
     const logs = await prisma.moderationLog.findMany({
       where: { reviewId },
@@ -437,7 +438,7 @@ router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), asy
 // Resolve report
 router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(req.params.id!);
     const { action } = resolveReportSchema.parse(req.body);
 
     const report = await prisma.reviewReport.findUnique({

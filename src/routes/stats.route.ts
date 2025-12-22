@@ -1,8 +1,9 @@
 import { Router, Request, Response } from 'express';
-import { prisma } from '@innovabound-ecomm-platform/reviews-db';
-import { requireAuth, requirePermission, optionalAuth } from '../middleware/auth';
+import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
+import { requireAuth, requirePermission, optionalAuth } from '../middleware/auth.js';
 
 const router = Router();
+const prisma = getReviewsPrisma();
 
 // Get product review stats
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
@@ -42,7 +43,7 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
 // Recalculate product stats (admin)
 router.post('/product/:productId/recalculate', requireAuth, requirePermission('admin'), async (req: Request, res: Response) => {
   try {
-    const { productId } = req.params;
+    const productId = req.params.productId!;
 
     // Calculate review stats
     const reviewStats = await prisma.review.groupBy({
