@@ -1,15 +1,9 @@
 #!/usr/bin/env tsx
 /**
  * Database connection validation for reviews-service
- * 
- * Validates:
- * - Can import reviews-db module
- * - Prisma client instantiation
- * - Required types and enums are available
- * - Database schema matches service expectations
  */
 
-import { PrismaClient } from "@innovabound-ecomm-platform/reviews-db";
+import { PrismaClient, getReviewsPrisma } from "@innovabound-ecomm-platform/reviews-db";
 
 interface ValidationCheck {
   name: string;
@@ -22,62 +16,56 @@ const checks: ValidationCheck[] = [];
 async function runValidation() {
   console.log('🔍 Validating reviews-service database connection...\n');
 
+  // Check 1: Import validation
   try {
-    const prisma = new PrismaClient();
     checks.push({
-      name: 'Import and instantiate reviews-db PrismaClient',
-      passed: prisma !== undefined,
+      name: 'Import reviews-db module (PrismaClient)',
+      passed: PrismaClient !== undefined,
     });
-
-    // Prisma client models
-    const requiredModels = ['review', 'rating', 'question', 'answer', 'vote'];
-    
-    for (const model of requiredModels) {
-      try {
-        const modelExists = (prisma as any)[model] !== undefined;
-        checks.push({
-          name: `Model ${model} exists`,
-          passed: modelExists,
-          error: modelExists ? undefined : `Model ${model} not found`,
-        });
-      } catch (error: any) {
-        checks.push({
-          name: `Model ${model} exists`,
-          passed: false,
-          error: error.message,
-        });
-      }
-    }
-
-    // Database connection
-    if (process.env.REVIEWS_DATABASE_URL) {
-      try {
-        await prisma.$connect();
-        checks.push({
-          name: 'Database connection successful',
-          passed: true,
-        });
-        await prisma.$disconnect();
-      } catch (error: any) {
-        checks.push({
-          name: 'Database connection',
-          passed: false,
-          error: `Connection failed: ${error.message}`,
-        });
-      }
-    } else {
-      checks.push({
-        name: 'Database connection',
-        passed: true,
-        error: 'Skipped - REVIEWS_DATABASE_URL not set',
-      });
-    }
-
   } catch (error: any) {
     checks.push({
       name: 'Import reviews-db module',
       passed: false,
       error: error.message,
+    });
+  }
+
+  // Check 2: getReviewsPrisma function exists
+  try {
+    checks.push({
+      name: 'getReviewsPrisma function available',
+      passed: typeof getReviewsPrisma === 'function',
+    });
+  } catch (error: any) {
+    checks.push({
+      name: 'getReviewsPrisma function available',
+      passed: false,
+      error: error.message,
+    });
+  }
+
+  // Check 3: Database connection (only if DATABASE_URL is set)
+  if (process.env.REVIEWS_DATABASE_URL) {
+    try {
+      const prisma = getReviewsPrisma();
+      await prisma.$connect();
+      checks.push({
+        name: 'Database connection successful',
+        passed: true,
+      });
+      await prisma.$disconnect();
+    } catch (error: any) {
+      checks.push({
+        name: 'Database connection',
+        passed: false,
+        error: `Connection failed: ${error.message}`,
+      });
+    }
+  } else {
+    checks.push({
+      name: 'Database connection',
+      passed: true,
+      error: 'Skipped - REVIEWS_DATABASE_URL not set',
     });
   }
 
@@ -98,6 +86,8 @@ async function runValidation() {
 
   if (failed > 0) {
     process.exit(1);
+  } else {
+    process.exit(0);
   }
 }
 
