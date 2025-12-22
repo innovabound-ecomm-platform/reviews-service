@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix"
+    "lint:fix": "eslint . --ext .ts --fix",
+    "validate-db": "tsx scripts/validate-db.ts"
   },
   "dependencies": {
     "@innovabound-ecomm-platform/kafka-client": "workspace:*",
@@ -25,6 +26,7 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "@types/node": "^22.15.21",
+    "tsx": "^4.19.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.0-beta"
   }
