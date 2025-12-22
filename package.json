@@ -1,0 +1,31 @@
+{
+  "name": "@innovabound-ecomm-platform/reviews-service",
+  "version": "1.0.0",
+  "description": "Reviews and Q&A service for the e-commerce platform",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix"
+  },
+  "dependencies": {
+    "@innovabound-ecomm-platform/kafka-client": "workspace:*",
+    "@innovabound-ecomm-platform/reviews-db": "workspace:*",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^5.0.1",
+    "zod": "^3.25.36"
+  },
+  "devDependencies": {
+    "@innovabound-ecomm-platform/eslint-config": "workspace:*",
+    "@innovabound-ecomm-platform/typescript-config": "workspace:*",
+    "@types/cookie-parser": "^1.4.8",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.21",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.0-beta"
+  }
+}
