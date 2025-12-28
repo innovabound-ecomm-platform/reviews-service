@@ -89,9 +89,9 @@ pnpm start
 
 ## Environment Variables
 
-- `PORT` - Server port (default: 3013)
+- `PORT` - Server port (default: 3009)
 - `DATABASE_URL` - PostgreSQL connection string
 
 ## Port
 
-This service runs on port `3013`.
+This service runs on port `3009`.

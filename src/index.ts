@@ -9,10 +9,13 @@ import answerRoutes from './routes/answer.route.js';
 import statsRoutes from './routes/stats.route.js';
 
 const app = express();
-const PORT = process.env.PORT || 3013;
+const PORT = process.env.PORT || 3009;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ["http://localhost:3000", "http://localhost:3002", "http://localhost:3003", "http://localhost:3100"],
+  credentials: true,
+}));
 app.use(express.json());
 app.use(cookieParser());
 
