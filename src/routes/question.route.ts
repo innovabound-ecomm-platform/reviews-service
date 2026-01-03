@@ -10,7 +10,7 @@ import {
   voteSchema,
 } from '../schemas/review.schema.js';
 
-const router = Router();
+const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Helper to update product Q&A stats

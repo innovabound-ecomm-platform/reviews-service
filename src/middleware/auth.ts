@@ -4,8 +4,9 @@ import { createRemoteJWKSet, jwtVerify, errors, JWTPayload } from "jose";
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
+    userId: string;
     email?: string;
-    roles?: string[];
+    roles: string[];
     permissions?: string[];
     sessionId?: string;
   };
@@ -89,6 +90,7 @@ export const requireAuth = async (
   if (userId) {
     req.user = {
       id: userId,
+      userId: userId,
       email: userEmail,
       roles: userRoles ? userRoles.split(",") : [],
     };
@@ -103,6 +105,7 @@ export const requireAuth = async (
     if (payload) {
       req.user = {
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         roles: payload.roles,
         permissions: payload.permissions,
@@ -121,6 +124,7 @@ export const requireAuth = async (
     if (payload) {
       req.user = {
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         roles: payload.roles,
         permissions: payload.permissions,
@@ -135,30 +139,37 @@ export const requireAuth = async (
 };
 
 /**
- * Middleware to check if user has required permission
+ * Middleware to check if user has required permission(s)
+ * Accepts one or more permissions - user needs at least one
  */
-export const requirePermission = (permission: string) => {
+export const requirePermission = (...permissions: string[]) => {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const userRoles = req.user?.roles || [];
     const userPermissions = req.user?.permissions || [];
 
     // Admin/Super Admin roles have all permissions
-    if (userRoles.some(role => ["ADMIN", "SUPER_ADMIN", "STAFF", "admin"].includes(role))) {
+    if (userRoles.some(role => ["ADMIN", "SUPER_ADMIN", "STAFF", "admin", "moderator"].includes(role))) {
       return next();
     }
 
-    // Check explicit permission
-    if (userPermissions.includes(permission)) {
-      return next();
-    }
-
-    // Check role-based permission (legacy format)
-    const hasPermission = userRoles.some(role =>
-      role === permission || role.startsWith(`${permission.split(":")[0]}:`)
-    );
+    // Check if user has any of the required permissions/roles
+    const hasPermission = permissions.some(permission => {
+      // Check explicit permission
+      if (userPermissions.includes(permission)) {
+        return true;
+      }
+      // Check role
+      if (userRoles.includes(permission)) {
+        return true;
+      }
+      // Check role-based permission (legacy format)
+      return userRoles.some(role =>
+        role === permission || role.startsWith(`${permission.split(":")[0]}:`)
+      );
+    });
 
     if (!hasPermission) {
-      return res.status(403).json({ error: "Insufficient permissions", required: permission });
+      return res.status(403).json({ error: "Insufficient permissions", required: permissions });
     }
 
     next();
@@ -198,6 +209,7 @@ export const optionalAuth = async (
   if (userId) {
     req.user = {
       id: userId,
+      userId: userId,
       email: userEmail,
       roles: userRoles ? userRoles.split(",") : [],
     };
@@ -212,6 +224,7 @@ export const optionalAuth = async (
     if (payload) {
       req.user = {
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         roles: payload.roles,
         permissions: payload.permissions,
@@ -230,6 +243,7 @@ export const optionalAuth = async (
     if (payload) {
       req.user = {
         id: payload.sub,
+        userId: payload.sub,
         email: payload.email,
         roles: payload.roles,
         permissions: payload.permissions,

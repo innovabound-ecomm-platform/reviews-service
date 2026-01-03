@@ -6,7 +6,7 @@ import {
   voteSchema,
 } from '../schemas/review.schema.js';
 
-const router = Router();
+const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Get answer by ID

@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
 import { requireAuth, requirePermission, optionalAuth } from '../middleware/auth.js';
 
-const router = Router();
+const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Get product review stats
