@@ -69,6 +69,60 @@ async function updateProductStats(productId: string) {
   });
 }
 
+/**
+ * @openapi
+ * /reviews:
+ *   post:
+ *     summary: Create a new review
+ *     description: Submit a product review. System automatically checks for verified purchase and validates single review per product per user.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [productId, title, body, rating]
+ *             properties:
+ *               productId:
+ *                 type: string
+ *               productVariantId:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *               rating:
+ *                 type: integer
+ *                 minimum: 10
+ *                 maximum: 50
+ *                 description: Rating in 10-50 range (10=1 star, 50=5 stars)
+ *               orderId:
+ *                 type: string
+ *               pros:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               cons:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       201:
+ *         description: Review created successfully
+ *       400:
+ *         description: Validation error or duplicate review
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Server error
+ */
 // Create review
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -142,6 +196,54 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews:
+ *   get:
+ *     summary: List reviews
+ *     description: Get paginated list of reviews with filtering and sorting options. Non-admin users only see approved reviews.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, APPROVED, REJECTED, FLAGGED, REMOVED]
+ *       - in: query
+ *         name: rating
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 5
+ *       - in: query
+ *         name: verifiedOnly
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [newest, oldest, highest, lowest, helpful]
+ *     responses:
+ *       200:
+ *         description: Paginated list of reviews
+ *       500:
+ *         description: Server error
+ */
 // List reviews
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -207,6 +309,31 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}:
+ *   get:
+ *     summary: Get review by ID
+ *     description: Retrieve a single review with images, verification, and vendor response. Non-admin users can only see approved reviews or their own.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Review details
+ *       404:
+ *         description: Review not found or not accessible
+ *       500:
+ *         description: Server error
+ */
 // Get review by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -244,6 +371,54 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/product/{productId}:
+ *   get:
+ *     summary: Get reviews for a product
+ *     description: Retrieve paginated reviews for a specific product with stats. Only approved reviews are returned.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: rating
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 5
+ *       - in: query
+ *         name: verifiedOnly
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [newest, oldest, highest, lowest, helpful]
+ *     responses:
+ *       200:
+ *         description: Reviews and stats for product
+ *       500:
+ *         description: Server error
+ */
 // Get reviews for a product
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -306,6 +481,41 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
   }
 });
 
+/**
+ * @openapi
+ * /reviews/user/{userId}:
+ *   get:
+ *     summary: Get reviews by user
+ *     description: Retrieve all reviews written by a specific user. Users can only see their own reviews unless admin.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: User's reviews
+ *       403:
+ *         description: Access denied
+ *       500:
+ *         description: Server error
+ */
 // Get reviews by user
 router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -350,6 +560,58 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => 
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}:
+ *   put:
+ *     summary: Update review
+ *     description: Update review content. Only author can update. Review status returns to PENDING after edit.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *               rating:
+ *                 type: integer
+ *                 minimum: 10
+ *                 maximum: 50
+ *               pros:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               cons:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *     responses:
+ *       200:
+ *         description: Review updated
+ *       400:
+ *         description: Validation error
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Update review
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -395,6 +657,33 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}:
+ *   delete:
+ *     summary: Delete review
+ *     description: Permanently delete a review. Author or admin can delete. Updates product stats.
+ *     tags:
+ *       - Reviews
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Review deleted
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Delete review
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -433,6 +722,48 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 // IMAGES
 // =====================
 
+/**
+ * @openapi
+ * /reviews/{id}/images:
+ *   post:
+ *     summary: Add image to review
+ *     description: Upload an image to an existing review. Only review author can add images.
+ *     tags:
+ *       - Review Images
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [url]
+ *             properties:
+ *               url:
+ *                 type: string
+ *                 format: uri
+ *               caption:
+ *                 type: string
+ *               displayOrder:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Image added
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -468,6 +799,38 @@ router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}/images/{imageId}:
+ *   delete:
+ *     summary: Delete image from review
+ *     description: Remove an image from a review. Author or admin can delete.
+ *     tags:
+ *       - Review Images
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: imageId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Image deleted
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -502,6 +865,44 @@ router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Res
 // VOTING
 // =====================
 
+/**
+ * @openapi
+ * /reviews/{id}/vote:
+ *   post:
+ *     summary: Vote on review
+ *     description: Mark review as helpful or not helpful. Cannot vote on own reviews. Updates vote if already voted.
+ *     tags:
+ *       - Review Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [voteType]
+ *             properties:
+ *               voteType:
+ *                 type: string
+ *                 enum: [HELPFUL, NOT_HELPFUL]
+ *     responses:
+ *       200:
+ *         description: Vote recorded
+ *       400:
+ *         description: Cannot vote on own review
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -578,6 +979,31 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}/vote:
+ *   delete:
+ *     summary: Remove vote from review
+ *     description: Remove your vote (helpful/not helpful) from a review.
+ *     tags:
+ *       - Review Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Vote removed
+ *       404:
+ *         description: Vote not found
+ *       500:
+ *         description: Server error
+ */
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -620,6 +1046,44 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // REPORTS
 // =====================
 
+/**
+ * @openapi
+ * /reviews/{id}/report:
+ *   post:
+ *     summary: Report a review
+ *     description: Submit a report for inappropriate review content. Increments report count.
+ *     tags:
+ *       - Review Reports
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 enum: [SPAM, INAPPROPRIATE, OFFENSIVE, FAKE, OTHER]
+ *               details:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Report submitted
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -662,6 +1126,43 @@ router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
 // VENDOR RESPONSE
 // =====================
 
+/**
+ * @openapi
+ * /reviews/{id}/response:
+ *   post:
+ *     summary: Add vendor response
+ *     description: Add a vendor response to a review. Only vendors and admins can respond.
+ *     tags:
+ *       - Vendor Responses
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [body]
+ *             properties:
+ *               body:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Response created
+ *       403:
+ *         description: Only vendors can respond
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.post('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -699,6 +1200,43 @@ router.post('/:id/response', requireAuth, async (req: Request, res: Response) =>
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}/response:
+ *   put:
+ *     summary: Update vendor response
+ *     description: Update existing vendor response. Only original responder or admin can update.
+ *     tags:
+ *       - Vendor Responses
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [body]
+ *             properties:
+ *               body:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Response updated
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Response not found
+ *       500:
+ *         description: Server error
+ */
 router.put('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -734,6 +1272,33 @@ router.put('/:id/response', requireAuth, async (req: Request, res: Response) => 
   }
 });
 
+/**
+ * @openapi
+ * /reviews/{id}/response:
+ *   delete:
+ *     summary: Delete vendor response
+ *     description: Remove vendor response from review. Only original responder or admin can delete.
+ *     tags:
+ *       - Vendor Responses
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Response deleted
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Response not found
+ *       500:
+ *         description: Server error
+ */
 router.delete('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);
@@ -768,6 +1333,57 @@ router.delete('/:id/response', requireAuth, async (req: Request, res: Response) 
 // VERIFICATION
 // =====================
 
+/**
+ * @openapi
+ * /reviews/{id}/verify:
+ *   post:
+ *     summary: Verify review purchase
+ *     description: Manually verify a review with purchase information. Admin only.
+ *     tags:
+ *       - Review Verification
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [method]
+ *             properties:
+ *               method:
+ *                 type: string
+ *                 enum: [ORDER_MATCH, RECEIPT_UPLOAD, MANUAL, THIRD_PARTY]
+ *               orderId:
+ *                 type: string
+ *               orderItemId:
+ *                 type: string
+ *               purchasedAt:
+ *                 type: string
+ *                 format: date-time
+ *               receiptUrl:
+ *                 type: string
+ *               externalSource:
+ *                 type: string
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Review verified
+ *       403:
+ *         description: Admin access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
   try {
     const reviewId = parseInt(req.params.id!);

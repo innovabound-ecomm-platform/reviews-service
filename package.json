@@ -2,12 +2,13 @@
   "name": "@innovabound-ecomm-platform/reviews-service",
   "version": "1.0.0",
   "description": "Reviews and Q&A service for the e-commerce platform",
-  "main": "dist/index.js",
+  "main": "dist/main.js",
   "type": "module",
   "scripts": {
-    "dev": "tsx --env-file=.env --watch src/index.ts",
+    "dev": "tsx --env-file=.env --watch src/main.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/main.js",
+    "check-types": "tsc --noEmit",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "validate-db": "tsx scripts/validate-db.ts"

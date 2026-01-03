@@ -34,6 +34,41 @@ async function updateProductQAStats(productId: string) {
   });
 }
 
+/**
+ * @openapi
+ * /reviews/questions:
+ *   post:
+ *     summary: Create a question
+ *     description: Submit a product question. Updates product Q&A stats.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [productId, body]
+ *             properties:
+ *               productId:
+ *                 type: string
+ *               displayName:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Question created
+ *       400:
+ *         description: Validation error
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Server error
+ */
 // Create question
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -64,6 +99,44 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions:
+ *   get:
+ *     summary: List questions
+ *     description: Get paginated list of questions with filtering and sorting.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [OPEN, ANSWERED, CLOSED]
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [newest, oldest, popular]
+ *     responses:
+ *       200:
+ *         description: Paginated list of questions
+ *       500:
+ *         description: Server error
+ */
 // List questions
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -110,6 +183,31 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}:
+ *   get:
+ *     summary: Get question by ID
+ *     description: Retrieve a single question with all answers sorted by acceptance, vendor status, and helpfulness.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Question details with answers
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Get question by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -143,6 +241,49 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/product/{productId}:
+ *   get:
+ *     summary: Get questions for a product
+ *     description: Retrieve paginated questions for a specific product with accepted answers.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [OPEN, ANSWERED, CLOSED]
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           enum: [newest, oldest, popular]
+ *     responses:
+ *       200:
+ *         description: Product questions
+ *       500:
+ *         description: Server error
+ */
 // Get questions for a product
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -194,6 +335,44 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}:
+ *   put:
+ *     summary: Update question
+ *     description: Update question content. Only author or admin can update.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               displayName:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Question updated
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Update question
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -230,6 +409,33 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}:
+ *   delete:
+ *     summary: Delete question
+ *     description: Permanently delete a question and all its answers. Author or admin can delete. Updates product stats.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Question deleted
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Delete question
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -264,6 +470,33 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}/close:
+ *   post:
+ *     summary: Close question
+ *     description: Close a question to prevent new answers. Author or admin can close.
+ *     tags:
+ *       - Questions
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Question closed
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Close question
 router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -299,6 +532,33 @@ router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}/vote:
+ *   post:
+ *     summary: Vote on question
+ *     description: Upvote a question to show interest. Cannot vote on own questions. One vote per user.
+ *     tags:
+ *       - Question Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Vote recorded
+ *       400:
+ *         description: Cannot vote on own question or already voted
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Vote on question
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -354,6 +614,31 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{id}/vote:
+ *   delete:
+ *     summary: Remove vote from question
+ *     description: Remove your upvote from a question.
+ *     tags:
+ *       - Question Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Vote removed
+ *       404:
+ *         description: Vote not found
+ *       500:
+ *         description: Server error
+ */
 // Remove vote from question
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -393,6 +678,47 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // ANSWERS
 // =====================
 
+/**
+ * @openapi
+ * /reviews/questions/{questionId}/answers:
+ *   post:
+ *     summary: Add answer to question
+ *     description: Submit an answer to a question. Vendors/admins can mark as vendor answer. Updates question status.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [body]
+ *             properties:
+ *               displayName:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *               isVendor:
+ *                 type: boolean
+ *     responses:
+ *       201:
+ *         description: Answer created
+ *       400:
+ *         description: Question is closed
+ *       404:
+ *         description: Question not found
+ *       500:
+ *         description: Server error
+ */
 // Add answer
 router.post('/:questionId/answers', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -447,6 +773,29 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
   }
 });
 
+/**
+ * @openapi
+ * /reviews/questions/{questionId}/answers:
+ *   get:
+ *     summary: List answers for question
+ *     description: Get all answers for a question sorted by acceptance, vendor status, and helpfulness.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: questionId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of answers
+ *       500:
+ *         description: Server error
+ */
 // List answers for question
 router.get('/:questionId/answers', optionalAuth, async (req: Request, res: Response) => {
   try {

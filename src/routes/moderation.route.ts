@@ -64,6 +64,41 @@ async function updateProductStats(productId: string) {
   });
 }
 
+/**
+ * @openapi
+ * /reviews/moderation/queue:
+ *   get:
+ *     summary: Get moderation queue
+ *     description: Retrieve reviews pending moderation. Shows pending and flagged reviews sorted by report count. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [PENDING, FLAGGED, APPROVED, REJECTED, REMOVED]
+ *     responses:
+ *       200:
+ *         description: Moderation queue
+ *       403:
+ *         description: Admin/moderator access required
+ *       500:
+ *         description: Server error
+ */
 // Get moderation queue
 router.get('/queue', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -117,6 +152,41 @@ router.get('/queue', requireAuth, requirePermission('admin', 'moderator'), async
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/approve:
+ *   post:
+ *     summary: Approve review
+ *     description: Approve a pending/flagged review for publication. Updates product stats. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Review approved
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Approve review
 router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -168,6 +238,41 @@ router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator')
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/reject:
+ *   post:
+ *     summary: Reject review
+ *     description: Reject a review permanently. Review will not be published. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Review rejected
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Reject review
 router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -215,6 +320,41 @@ router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'),
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/flag:
+ *   post:
+ *     summary: Flag review for additional review
+ *     description: Flag a review that needs additional moderation review. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Review flagged
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Flag review for additional review
 router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -262,6 +402,41 @@ router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), a
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/remove:
+ *   post:
+ *     summary: Remove published review
+ *     description: Remove a published review from public view. Updates product stats. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Review removed
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Remove published review
 router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -314,6 +489,43 @@ router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'),
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/restore:
+ *   post:
+ *     summary: Restore removed review
+ *     description: Restore a previously removed review and approve it. Updates product stats. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Review restored
+ *       400:
+ *         description: Only removed reviews can be restored
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Review not found
+ *       500:
+ *         description: Server error
+ */
 // Restore removed review
 router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -367,6 +579,31 @@ router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator')
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/{id}/logs:
+ *   get:
+ *     summary: Get moderation logs
+ *     description: Retrieve moderation history for a review. Shows all moderation actions. Admin/moderator only.
+ *     tags:
+ *       - Moderation
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Moderation logs
+ *       403:
+ *         description: Admin/moderator access required
+ *       500:
+ *         description: Server error
+ */
 // Get moderation logs for a review
 router.get('/:id/logs', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -388,6 +625,41 @@ router.get('/:id/logs', requireAuth, requirePermission('admin', 'moderator'), as
 // REPORTS
 // =====================
 
+/**
+ * @openapi
+ * /reviews/moderation/reports:
+ *   get:
+ *     summary: List review reports
+ *     description: Get all reports submitted by users. Filter by resolved status. Admin/moderator only.
+ *     tags:
+ *       - Moderation Reports
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: resolved
+ *         schema:
+ *           type: boolean
+ *           default: false
+ *     responses:
+ *       200:
+ *         description: List of reports
+ *       403:
+ *         description: Admin/moderator access required
+ *       500:
+ *         description: Server error
+ */
 // List reports
 router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
@@ -435,6 +707,44 @@ router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), asy
   }
 });
 
+/**
+ * @openapi
+ * /reviews/moderation/reports/{id}/resolve:
+ *   post:
+ *     summary: Resolve report
+ *     description: Mark report as resolved and optionally take action on the review. Admin/moderator only.
+ *     tags:
+ *       - Moderation Reports
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [action]
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [dismiss, flag_review, remove_review]
+ *     responses:
+ *       200:
+ *         description: Report resolved
+ *       403:
+ *         description: Admin/moderator access required
+ *       404:
+ *         description: Report not found
+ *       500:
+ *         description: Server error
+ */
 // Resolve report
 router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {

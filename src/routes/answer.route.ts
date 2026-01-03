@@ -9,6 +9,31 @@ import {
 const router: Router = Router();
 const prisma = getReviewsPrisma();
 
+/**
+ * @openapi
+ * /reviews/answers/{id}:
+ *   get:
+ *     summary: Get answer by ID
+ *     description: Retrieve a single answer with its associated question.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Answer details
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Get answer by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -33,6 +58,44 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}:
+ *   put:
+ *     summary: Update answer
+ *     description: Update answer content. Only author or admin can update.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               displayName:
+ *                 type: string
+ *               body:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Answer updated
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Update answer
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -69,6 +132,33 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}:
+ *   delete:
+ *     summary: Delete answer
+ *     description: Permanently delete an answer. Author or admin can delete.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Answer deleted
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Delete answer
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -100,6 +190,33 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}/accept:
+ *   post:
+ *     summary: Accept answer as best answer
+ *     description: Mark answer as accepted (best answer). Only question author or admin can accept. Unaccepts previous answer if any.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Answer accepted
+ *       403:
+ *         description: Only question author can accept
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Accept answer as best answer
 router.post('/:id/accept', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -152,6 +269,33 @@ router.post('/:id/accept', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}/unaccept:
+ *   post:
+ *     summary: Unaccept answer
+ *     description: Remove accepted status from an answer. Only question author or admin can unaccept.
+ *     tags:
+ *       - Answers
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Answer unaccepted
+ *       403:
+ *         description: Only question author can unaccept
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Unaccept answer
 router.post('/:id/unaccept', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -188,6 +332,44 @@ router.post('/:id/unaccept', requireAuth, async (req: Request, res: Response) =>
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}/vote:
+ *   post:
+ *     summary: Vote on answer
+ *     description: Mark answer as helpful or not helpful. Cannot vote on own answers. Updates vote if already voted.
+ *     tags:
+ *       - Answer Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [voteType]
+ *             properties:
+ *               voteType:
+ *                 type: string
+ *                 enum: [HELPFUL, NOT_HELPFUL]
+ *     responses:
+ *       200:
+ *         description: Vote recorded
+ *       400:
+ *         description: Cannot vote on own answer
+ *       404:
+ *         description: Answer not found
+ *       500:
+ *         description: Server error
+ */
 // Vote on answer
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
@@ -264,6 +446,31 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/answers/{id}/vote:
+ *   delete:
+ *     summary: Remove vote from answer
+ *     description: Remove your vote (helpful/not helpful) from an answer.
+ *     tags:
+ *       - Answer Voting
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Vote removed
+ *       404:
+ *         description: Vote not found
+ *       500:
+ *         description: Server error
+ */
 // Remove vote from answer
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {

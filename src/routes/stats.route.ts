@@ -5,6 +5,29 @@ import { requireAuth, requirePermission, optionalAuth } from '../middleware/auth
 const router: Router = Router();
 const prisma = getReviewsPrisma();
 
+/**
+ * @openapi
+ * /reviews/stats/product/{productId}:
+ *   get:
+ *     summary: Get product review statistics
+ *     description: Retrieve aggregated review stats for a product including rating distribution and Q&A counts.
+ *     tags:
+ *       - Statistics
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Product review statistics
+ *       500:
+ *         description: Server error
+ */
 // Get product review stats
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -40,6 +63,31 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
   }
 });
 
+/**
+ * @openapi
+ * /reviews/stats/product/{productId}/recalculate:
+ *   post:
+ *     summary: Recalculate product statistics
+ *     description: Force recalculation of all review and Q&A statistics for a product. Admin only.
+ *     tags:
+ *       - Statistics
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: productId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Statistics recalculated
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
 // Recalculate product stats (admin)
 router.post('/product/:productId/recalculate', requireAuth, requirePermission('admin'), async (req: Request, res: Response) => {
   try {
@@ -118,6 +166,38 @@ router.post('/product/:productId/recalculate', requireAuth, requirePermission('a
   }
 });
 
+/**
+ * @openapi
+ * /reviews/stats/products:
+ *   post:
+ *     summary: Get statistics for multiple products
+ *     description: Bulk retrieve review stats for up to 100 products. Returns default stats for products without reviews.
+ *     tags:
+ *       - Statistics
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [productIds]
+ *             properties:
+ *               productIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 maxItems: 100
+ *     responses:
+ *       200:
+ *         description: Array of product statistics
+ *       400:
+ *         description: Invalid request or too many products
+ *       500:
+ *         description: Server error
+ */
 // Get stats for multiple products
 router.post('/products', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -168,6 +248,34 @@ router.post('/products', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/stats/top-rated:
+ *   get:
+ *     summary: Get top rated products
+ *     description: Retrieve products with highest average ratings, filtered by minimum review count.
+ *     tags:
+ *       - Statistics
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: minReviews
+ *         schema:
+ *           type: integer
+ *           default: 5
+ *     responses:
+ *       200:
+ *         description: List of top rated products
+ *       500:
+ *         description: Server error
+ */
 // Get top rated products
 router.get('/top-rated', optionalAuth, async (req: Request, res: Response) => {
   try {
@@ -189,6 +297,36 @@ router.get('/top-rated', optionalAuth, async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * @openapi
+ * /reviews/stats/summary:
+ *   get:
+ *     summary: Get overall review statistics
+ *     description: Get system-wide statistics for reviews, questions, and moderation. Admin only.
+ *     tags:
+ *       - Statistics
+ *     security:
+ *       - bearerAuth: []
+ *       - cookieAuth: []
+ *     responses:
+ *       200:
+ *         description: Summary statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 reviews:
+ *                   type: object
+ *                 questions:
+ *                   type: object
+ *                 moderation:
+ *                   type: object
+ *       403:
+ *         description: Admin access required
+ *       500:
+ *         description: Server error
+ */
 // Get review statistics summary (admin)
 router.get('/summary', requireAuth, requirePermission('admin'), async (req: Request, res: Response) => {
   try {
