@@ -9,21 +9,29 @@ import {
   updateAnswerSchema,
   voteSchema,
 } from '../schemas/review.schema.js';
+import {
+  getSiteId,
+  requireSiteId,
+  questionWhere,
+  answerWhere,
+  withSiteId,
+} from '../utils/tenant.utils.js';
 
 const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Helper to update product Q&A stats
-async function updateProductQAStats(productId: string) {
+async function updateProductQAStats(productId: string, siteId: string) {
   const [questionCount, answeredCount] = await Promise.all([
-    prisma.question.count({ where: { productId } }),
-    prisma.question.count({ where: { productId, status: 'ANSWERED' } }),
+    prisma.question.count({ where: questionWhere(siteId, { productId }) }),
+    prisma.question.count({ where: questionWhere(siteId, { productId, status: 'ANSWERED' }) }),
   ]);
 
   await prisma.productReviewStats.upsert({
-    where: { productId },
+    where: { siteId_productId: { siteId, productId } },
     create: {
       productId,
+      siteId,
       questionCount,
       answeredCount,
     },
@@ -72,21 +80,22 @@ async function updateProductQAStats(productId: string) {
 // Create question
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const data = createQuestionSchema.parse(req.body);
 
     const question = await prisma.question.create({
-      data: {
+      data: withSiteId({
         productId: data.productId,
         userId: req.user!.userId,
         displayName: data.displayName,
         body: data.body,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Update stats
-    await updateProductQAStats(data.productId);
+    await updateProductQAStats(data.productId, siteId);
 
     res.status(201).json(question);
   } catch (error) {
@@ -140,11 +149,14 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
 // List questions
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const query = questionQuerySchema.parse(req.query);
     const { page, limit, status, sortBy } = query;
 
-    const where: Record<string, unknown> = {};
-    if (status) where.status = status;
+    const additionalWhere: Record<string, unknown> = {};
+    if (status) additionalWhere.status = status;
+
+    const where = questionWhere(siteId, additionalWhere, { strict: false });
 
     const orderBy: Record<string, string> = {};
     switch (sortBy) {
@@ -211,10 +223,11 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 // Get question by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const question = await prisma.question.findUnique({
-      where: { id },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id }, { strict: false }),
       include: {
         answers: {
           orderBy: [
@@ -287,12 +300,15 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 // Get questions for a product
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const { productId } = req.params;
     const query = questionQuerySchema.parse(req.query);
     const { page, limit, status, sortBy } = query;
 
-    const where: Record<string, unknown> = { productId };
-    if (status) where.status = status;
+    const additionalWhere: Record<string, unknown> = { productId };
+    if (status) additionalWhere.status = status;
+
+    const where = questionWhere(siteId, additionalWhere, { strict: false });
 
     const orderBy: Record<string, string> = {};
     switch (sortBy) {
@@ -376,11 +392,12 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
 // Update question
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const data = updateQuestionSchema.parse(req.body);
 
-    const question = await prisma.question.findUnique({
-      where: { id },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id }),
     });
 
     if (!question) {
@@ -439,10 +456,11 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 // Delete question
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const question = await prisma.question.findUnique({
-      where: { id },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id }),
     });
 
     if (!question) {
@@ -461,7 +479,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     });
 
     // Update stats
-    await updateProductQAStats(question.productId);
+    await updateProductQAStats(question.productId, siteId);
 
     res.status(204).send();
   } catch (error) {
@@ -500,10 +518,11 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 // Close question
 router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const question = await prisma.question.findUnique({
-      where: { id },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id }),
     });
 
     if (!question) {
@@ -562,10 +581,11 @@ router.post('/:id/close', requireAuth, async (req: Request, res: Response) => {
 // Vote on question
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const questionId = parseInt(req.params.id!);
 
-    const question = await prisma.question.findUnique({
-      where: { id: questionId },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id: questionId }),
     });
 
     if (!question) {
@@ -594,12 +614,12 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
     }
 
     await prisma.questionVote.create({
-      data: {
+      data: withSiteId({
         questionId,
         userId: req.user!.userId,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     await prisma.question.update({
@@ -642,6 +662,7 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // Remove vote from question
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const questionId = parseInt(req.params.id!);
 
     const vote = await prisma.questionVote.findUnique({
@@ -722,11 +743,12 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // Add answer
 router.post('/:questionId/answers', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const questionId = parseInt(req.params.questionId!);
     const data = createAnswerSchema.parse(req.body);
 
-    const question = await prisma.question.findUnique({
-      where: { id: questionId },
+    const question = await prisma.question.findFirst({
+      where: questionWhere(siteId, { id: questionId }),
     });
 
     if (!question) {
@@ -744,7 +766,7 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
       (req.user!.roles.includes('vendor') || req.user!.roles.includes('admin'));
 
     const answer = await prisma.answer.create({
-      data: {
+      data: withSiteId({
         questionId,
         userId: req.user!.userId,
         displayName: data.displayName,
@@ -752,7 +774,7 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
         isVendor,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Update question status if first answer
@@ -763,7 +785,7 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
       });
 
       // Update product stats
-      await updateProductQAStats(question.productId);
+      await updateProductQAStats(question.productId, siteId);
     }
 
     res.status(201).json(answer);
@@ -799,10 +821,11 @@ router.post('/:questionId/answers', requireAuth, async (req: Request, res: Respo
 // List answers for question
 router.get('/:questionId/answers', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const questionId = parseInt(req.params.questionId!);
 
     const answers = await prisma.answer.findMany({
-      where: { questionId },
+      where: answerWhere(siteId, { questionId }, { strict: false }),
       orderBy: [
         { isAccepted: 'desc' },
         { isVendor: 'desc' },

@@ -1,6 +1,12 @@
 import { Router, Request, Response } from 'express';
 import { getReviewsPrisma } from '@innovabound-ecomm-platform/reviews-db';
 import { requireAuth, requirePermission, optionalAuth } from '../middleware/auth.js';
+import {
+  getSiteId,
+  requireSiteId,
+  reviewWhere,
+  questionWhere,
+} from '../utils/tenant.utils.js';
 
 const router: Router = Router();
 const prisma = getReviewsPrisma();
@@ -31,11 +37,16 @@ const prisma = getReviewsPrisma();
 // Get product review stats
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const { productId } = req.params;
 
-    const stats = await prisma.productReviewStats.findUnique({
-      where: { productId },
-    });
+    const stats = siteId
+      ? await prisma.productReviewStats.findUnique({
+          where: { siteId_productId: { siteId, productId: productId! } },
+        })
+      : await prisma.productReviewStats.findFirst({
+          where: { productId },
+        });
 
     if (!stats) {
       // Return default stats if none exist
@@ -91,17 +102,18 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
 // Recalculate product stats (admin)
 router.post('/product/:productId/recalculate', requireAuth, requirePermission('admin'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const productId = req.params.productId!;
 
     // Calculate review stats
     const reviewStats = await prisma.review.groupBy({
       by: ['rating'],
-      where: { productId, status: 'APPROVED' },
+      where: reviewWhere(siteId, { productId, status: 'APPROVED' }),
       _count: true,
     });
 
     const verifiedStats = await prisma.review.aggregate({
-      where: { productId, status: 'APPROVED', verifiedPurchase: true },
+      where: reviewWhere(siteId, { productId, status: 'APPROVED', verifiedPurchase: true }),
       _count: true,
       _avg: { rating: true },
     });
@@ -128,15 +140,16 @@ router.post('/product/:productId/recalculate', requireAuth, requirePermission('a
 
     // Calculate Q&A stats
     const [questionCount, answeredCount] = await Promise.all([
-      prisma.question.count({ where: { productId } }),
-      prisma.question.count({ where: { productId, status: 'ANSWERED' } }),
+      prisma.question.count({ where: questionWhere(siteId, { productId }) }),
+      prisma.question.count({ where: questionWhere(siteId, { productId, status: 'ANSWERED' }) }),
     ]);
 
     // Upsert stats
     const stats = await prisma.productReviewStats.upsert({
-      where: { productId },
+      where: { siteId_productId: { siteId, productId } },
       create: {
         productId,
+        siteId,
         reviewCount: totalReviews,
         averageRating: avgRating / 10,
         ...ratingCounts,
@@ -201,6 +214,7 @@ router.post('/product/:productId/recalculate', requireAuth, requirePermission('a
 // Get stats for multiple products
 router.post('/products', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const { productIds } = req.body;
 
     if (!Array.isArray(productIds) || productIds.length === 0) {
@@ -213,8 +227,11 @@ router.post('/products', optionalAuth, async (req: Request, res: Response) => {
       return;
     }
 
+    const where: Record<string, unknown> = { productId: { in: productIds } };
+    if (siteId) where.siteId = siteId;
+
     const stats = await prisma.productReviewStats.findMany({
-      where: { productId: { in: productIds } },
+      where,
     });
 
     // Create a map for easy lookup
@@ -279,13 +296,17 @@ router.post('/products', optionalAuth, async (req: Request, res: Response) => {
 // Get top rated products
 router.get('/top-rated', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const limit = parseInt(req.query.limit as string) || 10;
     const minReviews = parseInt(req.query.minReviews as string) || 5;
 
+    const where: Record<string, unknown> = {
+      reviewCount: { gte: minReviews },
+    };
+    if (siteId) where.siteId = siteId;
+
     const stats = await prisma.productReviewStats.findMany({
-      where: {
-        reviewCount: { gte: minReviews },
-      },
+      where,
       orderBy: { averageRating: 'desc' },
       take: limit,
     });
@@ -330,6 +351,12 @@ router.get('/top-rated', optionalAuth, async (req: Request, res: Response) => {
 // Get review statistics summary (admin)
 router.get('/summary', requireAuth, requirePermission('admin'), async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
+    
+    const reviewWhereSite = siteId ? { siteId } : {};
+    const reportWhereSite = siteId ? { siteId } : {};
+    const questionWhereSite = siteId ? { siteId } : {};
+
     const [
       totalReviews,
       pendingReviews,
@@ -340,14 +367,14 @@ router.get('/summary', requireAuth, requirePermission('admin'), async (req: Requ
       answeredQuestions,
       unresolvedReports,
     ] = await Promise.all([
-      prisma.review.count(),
-      prisma.review.count({ where: { status: 'PENDING' } }),
-      prisma.review.count({ where: { status: 'APPROVED' } }),
-      prisma.review.count({ where: { status: 'REJECTED' } }),
-      prisma.review.count({ where: { status: 'FLAGGED' } }),
-      prisma.question.count(),
-      prisma.question.count({ where: { status: 'ANSWERED' } }),
-      prisma.reviewReport.count({ where: { resolved: false } }),
+      prisma.review.count({ where: reviewWhereSite }),
+      prisma.review.count({ where: { ...reviewWhereSite, status: 'PENDING' } }),
+      prisma.review.count({ where: { ...reviewWhereSite, status: 'APPROVED' } }),
+      prisma.review.count({ where: { ...reviewWhereSite, status: 'REJECTED' } }),
+      prisma.review.count({ where: { ...reviewWhereSite, status: 'FLAGGED' } }),
+      prisma.question.count({ where: questionWhereSite }),
+      prisma.question.count({ where: { ...questionWhereSite, status: 'ANSWERED' } }),
+      prisma.reviewReport.count({ where: { ...reportWhereSite, resolved: false } }),
     ]);
 
     res.json({

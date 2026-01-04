@@ -11,20 +11,26 @@ import {
   vendorResponseSchema,
   verifyReviewSchema,
 } from '../schemas/review.schema.js';
+import {
+  getSiteId,
+  requireSiteId,
+  reviewWhere,
+  withSiteId,
+} from '../utils/tenant.utils.js';
 
 const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Helper to update product review stats
-async function updateProductStats(productId: string) {
+async function updateProductStats(productId: string, siteId: string) {
   const stats = await prisma.review.groupBy({
     by: ['rating'],
-    where: { productId, status: 'APPROVED' },
+    where: reviewWhere(siteId, { productId, status: 'APPROVED' }),
     _count: true,
   });
 
   const verifiedStats = await prisma.review.aggregate({
-    where: { productId, status: 'APPROVED', verifiedPurchase: true },
+    where: reviewWhere(siteId, { productId, status: 'APPROVED', verifiedPurchase: true }),
     _count: true,
     _avg: { rating: true },
   });
@@ -50,9 +56,10 @@ async function updateProductStats(productId: string) {
   });
 
   await prisma.productReviewStats.upsert({
-    where: { productId },
+    where: { siteId_productId: { siteId, productId } },
     create: {
       productId,
+      siteId,
       reviewCount: totalReviews,
       averageRating: avgRating / 10, // Convert to 1-5 scale
       ...ratingCounts,
@@ -126,14 +133,15 @@ async function updateProductStats(productId: string) {
 // Create review
 router.post('/', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const data = createReviewSchema.parse(req.body);
 
     // Check if user already reviewed this product
     const existingReview = await prisma.review.findFirst({
-      where: {
+      where: reviewWhere(siteId, {
         productId: data.productId,
         userId: req.user!.userId,
-      },
+      }),
     });
 
     if (existingReview) {
@@ -149,7 +157,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
     }
 
     const review = await prisma.review.create({
-      data: {
+      data: withSiteId({
         productId: data.productId,
         productVariantId: data.productVariantId,
         userId: req.user!.userId,
@@ -164,7 +172,7 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
         status: 'PENDING',
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
       include: {
         images: true,
         verification: true,
@@ -247,26 +255,29 @@ router.post('/', requireAuth, async (req: Request, res: Response) => {
 // List reviews
 router.get('/', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const query = reviewQuerySchema.parse(req.query);
     const { page, limit, status, rating, verifiedOnly, sortBy } = query;
 
-    const where: Record<string, unknown> = {};
+    const additionalWhere: Record<string, unknown> = {};
     
     // Non-admin users can only see approved reviews
     if (!req.user?.roles.includes('admin')) {
-      where.status = 'APPROVED';
+      additionalWhere.status = 'APPROVED';
     } else if (status) {
-      where.status = status;
+      additionalWhere.status = status;
     }
 
     if (rating) {
       // Convert 1-5 star rating to 10-50 range
-      where.rating = {
+      additionalWhere.rating = {
         gte: rating * 10,
         lt: (rating + 1) * 10,
       };
     }
-    if (verifiedOnly) where.verifiedPurchase = true;
+    if (verifiedOnly) additionalWhere.verifiedPurchase = true;
+
+    const where = reviewWhere(siteId, additionalWhere, { strict: false });
 
     const orderBy: Record<string, string> = {};
     switch (sortBy) {
@@ -337,10 +348,11 @@ router.get('/', optionalAuth, async (req: Request, res: Response) => {
 // Get review by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }, { strict: false }),
       include: {
         images: true,
         verification: true,
@@ -422,22 +434,25 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 // Get reviews for a product
 router.get('/product/:productId', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const { productId } = req.params;
     const query = reviewQuerySchema.parse(req.query);
     const { page, limit, rating, verifiedOnly, sortBy } = query;
 
-    const where: Record<string, unknown> = {
+    const additionalWhere: Record<string, unknown> = {
       productId,
       status: 'APPROVED',
     };
 
     if (rating) {
-      where.rating = {
+      additionalWhere.rating = {
         gte: rating * 10,
         lt: (rating + 1) * 10,
       };
     }
-    if (verifiedOnly) where.verifiedPurchase = true;
+    if (verifiedOnly) additionalWhere.verifiedPurchase = true;
+
+    const where = reviewWhere(siteId, additionalWhere, { strict: false });
 
     const orderBy: Record<string, string> = {};
     switch (sortBy) {
@@ -460,9 +475,13 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
         },
       }),
       prisma.review.count({ where }),
-      prisma.productReviewStats.findUnique({
-        where: { productId },
-      }),
+      siteId
+        ? prisma.productReviewStats.findUnique({
+            where: { siteId_productId: { siteId, productId: productId! } },
+          })
+        : prisma.productReviewStats.findFirst({
+            where: { productId: productId! },
+          }),
     ]);
 
     res.json({
@@ -519,6 +538,7 @@ router.get('/product/:productId', optionalAuth, async (req: Request, res: Respon
 // Get reviews by user
 router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const { userId } = req.params;
     const query = reviewQuerySchema.parse(req.query);
     const { page, limit } = query;
@@ -529,7 +549,7 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => 
       return;
     }
 
-    const where: Record<string, unknown> = { userId };
+    const where = reviewWhere(siteId, { userId }, { strict: false });
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
@@ -615,11 +635,12 @@ router.get('/user/:userId', requireAuth, async (req: Request, res: Response) => 
 // Update review
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const data = updateReviewSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -687,10 +708,11 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 // Delete review
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -709,7 +731,7 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     });
 
     // Update stats
-    await updateProductStats(review.productId);
+    await updateProductStats(review.productId, siteId);
 
     res.status(204).send();
   } catch (error) {
@@ -766,11 +788,12 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
  */
 router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const data = addImageSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review) {
@@ -784,12 +807,12 @@ router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
     }
 
     const image = await prisma.reviewImage.create({
-      data: {
+      data: withSiteId({
         reviewId,
         ...data,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     res.status(201).json(image);
@@ -833,11 +856,12 @@ router.post('/:id/images', requireAuth, async (req: Request, res: Response) => {
  */
 router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const imageId = parseInt(req.params.imageId!);
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review) {
@@ -905,11 +929,12 @@ router.delete('/:id/images/:imageId', requireAuth, async (req: Request, res: Res
  */
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const { voteType } = voteSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review || review.status !== 'APPROVED') {
@@ -953,13 +978,13 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
     } else {
       // Create vote
       await prisma.reviewVote.create({
-        data: {
+        data: withSiteId({
           reviewId,
           userId: req.user!.userId,
           voteType,
           createdBy: req.user!.userId,
           updatedBy: req.user!.userId,
-        },
+        }, siteId),
       });
 
       // Update counts
@@ -1006,6 +1031,7 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
  */
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
 
     const vote = await prisma.reviewVote.findUnique({
@@ -1086,11 +1112,12 @@ router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
  */
 router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const data = createReportSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review) {
@@ -1099,14 +1126,14 @@ router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
     }
 
     const report = await prisma.reviewReport.create({
-      data: {
+      data: withSiteId({
         reviewId,
         reporterId: req.user!.userId,
         reason: data.reason,
         details: data.details,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Increment report count
@@ -1165,6 +1192,7 @@ router.post('/:id/report', requireAuth, async (req: Request, res: Response) => {
  */
 router.post('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const { body } = vendorResponseSchema.parse(req.body);
 
@@ -1174,8 +1202,8 @@ router.post('/:id/response', requireAuth, async (req: Request, res: Response) =>
       return;
     }
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review) {
@@ -1184,13 +1212,13 @@ router.post('/:id/response', requireAuth, async (req: Request, res: Response) =>
     }
 
     const response = await prisma.vendorResponse.create({
-      data: {
+      data: withSiteId({
         reviewId,
         body,
         responderId: req.user!.userId,
         createdBy: req.user!.userId,
         updatedBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     res.status(201).json(response);
@@ -1239,10 +1267,11 @@ router.post('/:id/response', requireAuth, async (req: Request, res: Response) =>
  */
 router.put('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const { body } = vendorResponseSchema.parse(req.body);
 
-    const existingResponse = await prisma.vendorResponse.findUnique({
+    const existingResponse = await prisma.vendorResponse.findFirst({
       where: { reviewId },
     });
 
@@ -1301,9 +1330,10 @@ router.put('/:id/response', requireAuth, async (req: Request, res: Response) => 
  */
 router.delete('/:id/response', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
 
-    const existingResponse = await prisma.vendorResponse.findUnique({
+    const existingResponse = await prisma.vendorResponse.findFirst({
       where: { reviewId },
     });
 
@@ -1386,6 +1416,7 @@ router.delete('/:id/response', requireAuth, async (req: Request, res: Response) 
  */
 router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const reviewId = parseInt(req.params.id!);
     const data = verifyReviewSchema.parse(req.body);
 
@@ -1395,8 +1426,8 @@ router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
       return;
     }
 
-    const review = await prisma.review.findUnique({
-      where: { id: reviewId },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id: reviewId }),
     });
 
     if (!review) {
@@ -1406,7 +1437,7 @@ router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
 
     const verification = await prisma.reviewVerification.upsert({
       where: { reviewId },
-      create: {
+      create: withSiteId({
         reviewId,
         method: data.method,
         orderId: data.orderId,
@@ -1419,7 +1450,7 @@ router.post('/:id/verify', requireAuth, async (req: Request, res: Response) => {
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
       update: {
         method: data.method,
         orderId: data.orderId,

@@ -5,6 +5,12 @@ import {
   updateAnswerSchema,
   voteSchema,
 } from '../schemas/review.schema.js';
+import {
+  getSiteId,
+  requireSiteId,
+  answerWhere,
+  withSiteId,
+} from '../utils/tenant.utils.js';
 
 const router: Router = Router();
 const prisma = getReviewsPrisma();
@@ -37,10 +43,11 @@ const prisma = getReviewsPrisma();
 // Get answer by ID
 router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id }, { strict: false }),
       include: {
         question: true,
       },
@@ -99,11 +106,12 @@ router.get('/:id', optionalAuth, async (req: Request, res: Response) => {
 // Update answer
 router.put('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const data = updateAnswerSchema.parse(req.body);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id }),
     });
 
     if (!answer) {
@@ -162,10 +170,11 @@ router.put('/:id', requireAuth, async (req: Request, res: Response) => {
 // Delete answer
 router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id }),
     });
 
     if (!answer) {
@@ -220,10 +229,11 @@ router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
 // Accept answer as best answer
 router.post('/:id/accept', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id }),
       include: { question: true },
     });
 
@@ -240,10 +250,10 @@ router.post('/:id/accept', requireAuth, async (req: Request, res: Response) => {
 
     // Unaccept any previously accepted answer
     await prisma.answer.updateMany({
-      where: {
+      where: answerWhere(siteId, {
         questionId: answer.questionId,
         isAccepted: true,
-      },
+      }),
       data: { isAccepted: false },
     });
 
@@ -299,10 +309,11 @@ router.post('/:id/accept', requireAuth, async (req: Request, res: Response) => {
 // Unaccept answer
 router.post('/:id/unaccept', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id }),
       include: { question: true },
     });
 
@@ -373,11 +384,12 @@ router.post('/:id/unaccept', requireAuth, async (req: Request, res: Response) =>
 // Vote on answer
 router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const answerId = parseInt(req.params.id!);
     const { voteType } = voteSchema.parse(req.body);
 
-    const answer = await prisma.answer.findUnique({
-      where: { id: answerId },
+    const answer = await prisma.answer.findFirst({
+      where: answerWhere(siteId, { id: answerId }),
     });
 
     if (!answer) {
@@ -421,13 +433,13 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
     } else {
       // Create vote
       await prisma.answerVote.create({
-        data: {
+        data: withSiteId({
           answerId,
           userId: req.user!.userId,
           voteType,
           createdBy: req.user!.userId,
           updatedBy: req.user!.userId,
-        },
+        }, siteId),
       });
 
       // Update count
@@ -474,6 +486,7 @@ router.post('/:id/vote', requireAuth, async (req: Request, res: Response) => {
 // Remove vote from answer
 router.delete('/:id/vote', requireAuth, async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const answerId = parseInt(req.params.id!);
 
     const vote = await prisma.answerVote.findUnique({

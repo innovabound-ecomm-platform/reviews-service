@@ -6,20 +6,26 @@ import {
   moderationQueueQuerySchema,
   resolveReportSchema,
 } from '../schemas/review.schema.js';
+import {
+  getSiteId,
+  requireSiteId,
+  reviewWhere,
+  withSiteId,
+} from '../utils/tenant.utils.js';
 
 const router: Router = Router();
 const prisma = getReviewsPrisma();
 
 // Helper to update product review stats
-async function updateProductStats(productId: string) {
+async function updateProductStats(productId: string, siteId: string) {
   const stats = await prisma.review.groupBy({
     by: ['rating'],
-    where: { productId, status: 'APPROVED' },
+    where: reviewWhere(siteId, { productId, status: 'APPROVED' }),
     _count: true,
   });
 
   const verifiedStats = await prisma.review.aggregate({
-    where: { productId, status: 'APPROVED', verifiedPurchase: true },
+    where: reviewWhere(siteId, { productId, status: 'APPROVED', verifiedPurchase: true }),
     _count: true,
     _avg: { rating: true },
   });
@@ -45,9 +51,10 @@ async function updateProductStats(productId: string) {
   });
 
   await prisma.productReviewStats.upsert({
-    where: { productId },
+    where: { siteId_productId: { siteId, productId } },
     create: {
       productId,
+      siteId,
       reviewCount: totalReviews,
       averageRating: avgRating / 10,
       ...ratingCounts,
@@ -102,17 +109,20 @@ async function updateProductStats(productId: string) {
 // Get moderation queue
 router.get('/queue', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const query = moderationQueueQuerySchema.parse(req.query);
     const { page, limit, status } = query;
 
-    const where: Record<string, unknown> = {};
+    const additionalWhere: Record<string, unknown> = {};
     
     if (status) {
-      where.status = status;
+      additionalWhere.status = status;
     } else {
       // Default to pending and flagged
-      where.status = { in: ['PENDING', 'FLAGGED'] };
+      additionalWhere.status = { in: ['PENDING', 'FLAGGED'] };
     }
+
+    const where = reviewWhere(siteId, additionalWhere, { strict: false });
 
     const [reviews, total] = await Promise.all([
       prisma.review.findMany({
@@ -190,11 +200,12 @@ router.get('/queue', requireAuth, requirePermission('admin', 'moderator'), async
 // Approve review
 router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -215,7 +226,7 @@ router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator')
 
     // Log moderation action
     await prisma.moderationLog.create({
-      data: {
+      data: withSiteId({
         reviewId: id,
         action: 'APPROVE',
         moderatorId: req.user!.userId,
@@ -225,11 +236,11 @@ router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator')
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Update product stats
-    await updateProductStats(review.productId);
+    await updateProductStats(review.productId, siteId);
 
     res.json(updated);
   } catch (error) {
@@ -276,11 +287,12 @@ router.post('/:id/approve', requireAuth, requirePermission('admin', 'moderator')
 // Reject review
 router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -300,7 +312,7 @@ router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'),
 
     // Log moderation action
     await prisma.moderationLog.create({
-      data: {
+      data: withSiteId({
         reviewId: id,
         action: 'REJECT',
         moderatorId: req.user!.userId,
@@ -310,7 +322,7 @@ router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'),
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     res.json(updated);
@@ -358,11 +370,12 @@ router.post('/:id/reject', requireAuth, requirePermission('admin', 'moderator'),
 // Flag review for additional review
 router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -382,7 +395,7 @@ router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), a
 
     // Log moderation action
     await prisma.moderationLog.create({
-      data: {
+      data: withSiteId({
         reviewId: id,
         action: 'FLAG',
         moderatorId: req.user!.userId,
@@ -392,7 +405,7 @@ router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), a
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     res.json(updated);
@@ -440,11 +453,12 @@ router.post('/:id/flag', requireAuth, requirePermission('admin', 'moderator'), a
 // Remove published review
 router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -464,7 +478,7 @@ router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'),
 
     // Log moderation action
     await prisma.moderationLog.create({
-      data: {
+      data: withSiteId({
         reviewId: id,
         action: 'REMOVE',
         moderatorId: req.user!.userId,
@@ -474,12 +488,12 @@ router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'),
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Update product stats
     if (previousStatus === 'APPROVED') {
-      await updateProductStats(review.productId);
+      await updateProductStats(review.productId, siteId);
     }
 
     res.json(updated);
@@ -529,11 +543,12 @@ router.post('/:id/remove', requireAuth, requirePermission('admin', 'moderator'),
 // Restore removed review
 router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { reason } = moderationActionSchema.parse(req.body);
 
-    const review = await prisma.review.findUnique({
-      where: { id },
+    const review = await prisma.review.findFirst({
+      where: reviewWhere(siteId, { id }),
     });
 
     if (!review) {
@@ -556,7 +571,7 @@ router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator')
 
     // Log moderation action
     await prisma.moderationLog.create({
-      data: {
+      data: withSiteId({
         reviewId: id,
         action: 'RESTORE',
         moderatorId: req.user!.userId,
@@ -566,11 +581,11 @@ router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator')
         actorUserId: req.user!.userId,
         actorType: 'ADMIN',
         createdBy: req.user!.userId,
-      },
+      }, siteId),
     });
 
     // Update product stats
-    await updateProductStats(review.productId);
+    await updateProductStats(review.productId, siteId);
 
     res.json(updated);
   } catch (error) {
@@ -607,10 +622,14 @@ router.post('/:id/restore', requireAuth, requirePermission('admin', 'moderator')
 // Get moderation logs for a review
 router.get('/:id/logs', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const reviewId = parseInt(req.params.id!);
 
+    const where: Record<string, unknown> = { reviewId };
+    if (siteId) where.siteId = siteId;
+
     const logs = await prisma.moderationLog.findMany({
-      where: { reviewId },
+      where,
       orderBy: { occurredAt: 'desc' },
     });
 
@@ -663,11 +682,16 @@ router.get('/:id/logs', requireAuth, requirePermission('admin', 'moderator'), as
 // List reports
 router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = getSiteId(req);
     const page = parseInt(req.query.page as string) || 1;
     const limit = parseInt(req.query.limit as string) || 20;
     const resolved = req.query.resolved === 'true';
 
+    // ReviewReport doesn't have siteId - filter by review.siteId instead
     const where: Record<string, unknown> = { resolved };
+    if (siteId) {
+      where.review = { siteId };
+    }
 
     const [reports, total] = await Promise.all([
       prisma.reviewReport.findMany({
@@ -685,6 +709,7 @@ router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), asy
               displayName: true,
               productId: true,
               status: true,
+              siteId: true,
             },
           },
         },
@@ -748,10 +773,11 @@ router.get('/reports', requireAuth, requirePermission('admin', 'moderator'), asy
 // Resolve report
 router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'moderator'), async (req: Request, res: Response) => {
   try {
+    const siteId = requireSiteId(req);
     const id = parseInt(req.params.id!);
     const { action } = resolveReportSchema.parse(req.body);
 
-    const report = await prisma.reviewReport.findUnique({
+    const report = await prisma.reviewReport.findFirst({
       where: { id },
       include: { review: true },
     });
@@ -780,7 +806,7 @@ router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'mod
       });
 
       await prisma.moderationLog.create({
-        data: {
+        data: withSiteId({
           reviewId: report.reviewId,
           action: 'REMOVE',
           moderatorId: req.user!.userId,
@@ -790,7 +816,7 @@ router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'mod
           actorUserId: req.user!.userId,
           actorType: 'ADMIN',
           createdBy: req.user!.userId,
-        },
+        }, siteId),
       });
     } else if (action === 'flag_review') {
       await prisma.review.update({
@@ -799,7 +825,7 @@ router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'mod
       });
 
       await prisma.moderationLog.create({
-        data: {
+        data: withSiteId({
           reviewId: report.reviewId,
           action: 'FLAG',
           moderatorId: req.user!.userId,
@@ -809,7 +835,7 @@ router.post('/reports/:id/resolve', requireAuth, requirePermission('admin', 'mod
           actorUserId: req.user!.userId,
           actorType: 'ADMIN',
           createdBy: req.user!.userId,
-        },
+        }, siteId),
       });
     }
 
